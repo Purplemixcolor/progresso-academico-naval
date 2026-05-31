@@ -1,11 +1,12 @@
-const CACHE_NAME = "progresso-academico-v2";
+const CACHE_NAME = "progresso-academico-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js?v=2",
   "./manifest.webmanifest",
-  "./icon.svg"
+  "./app-icon-192.png",
+  "./app-icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
