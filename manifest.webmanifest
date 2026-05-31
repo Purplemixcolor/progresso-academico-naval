@@ -1,0 +1,16 @@
+{
+  "name": "Progresso Acadêmico - Engenharia Naval",
+  "short_name": "Progresso",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f3f5f2",
+  "theme_color": "#223843",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

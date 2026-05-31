@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Progresso Acadêmico - Engenharia Naval</title>
+    <meta name="theme-color" content="#223843" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2" defer></script>
+    <script src="app.js?v=2" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Engenharia Naval</p>
+        <h1>Progresso Acadêmico</h1>
+      </div>
+      <div class="top-actions">
+        <button class="icon-button" id="exportBtn" type="button" title="Exportar dados">
+          <i data-lucide="download"></i>
+        </button>
+        <button class="icon-button" id="syncBtn" type="button" title="Sincronização">
+          <i data-lucide="cloud"></i>
+        </button>
+        <label class="icon-button file-action" title="Importar dados">
+          <i data-lucide="upload"></i>
+          <input id="importInput" type="file" accept="application/json" />
+        </label>
+        <button class="icon-button danger" id="resetBtn" type="button" title="Restaurar base">
+          <i data-lucide="rotate-ccw"></i>
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="settings-panel" aria-label="Configurações do curso">
+        <label>
+          Início do curso
+          <input id="startDate" type="month" />
+        </label>
+        <label>
+          Período atual
+          <input id="currentPeriod" type="number" min="1" max="20" />
+        </label>
+        <label>
+          Matérias por período
+          <input id="capacity" type="number" min="1" max="12" />
+        </label>
+        <label>
+          Créditos exigidos
+          <input id="requiredCredits" type="number" min="1" max="500" />
+        </label>
+        <label>
+          Meses por período
+          <input id="monthsPerPeriod" type="number" min="1" max="12" />
+        </label>
+      </section>
+
+      <section class="app-view active" id="dashboardView" data-view="dashboard">
+        <section class="metrics-grid" aria-label="Indicadores">
+          <article class="metric">
+            <span>Conclusão</span>
+            <strong id="completionPct">0%</strong>
+            <div class="progress-track"><div id="progressFill"></div></div>
+          </article>
+          <article class="metric">
+            <span>Créditos concluídos</span>
+            <strong id="creditsDone">0 / 0</strong>
+          </article>
+          <article class="metric">
+            <span>Disciplinas</span>
+            <strong id="subjectsDone">0 / 0</strong>
+          </article>
+          <article class="metric">
+            <span>Coeficiente estimado</span>
+            <strong id="courseCoef">-</strong>
+          </article>
+          <article class="metric">
+            <span>Previsão de formatura</span>
+            <strong id="graduationDate">-</strong>
+          </article>
+          <article class="metric alert">
+            <span>Matérias atrasadas</span>
+            <strong id="lateCount">0</strong>
+          </article>
+        </section>
+
+        <section class="summary-grid">
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Status das disciplinas</h2>
+              <span id="pendingCount">0</span>
+            </div>
+            <div class="status-breakdown">
+              <div><strong id="doneSubjectCount">0</strong><span>feitas</span></div>
+              <div><strong id="doingSubjectCount">0</strong><span>em curso</span></div>
+              <div><strong id="plannedSubjectCount">0</strong><span>planejadas</span></div>
+              <div><strong id="pendingSubjectCount">0</strong><span>pendentes</span></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Liberadas agora</h2>
+              <span id="openCount">0</span>
+            </div>
+            <div id="openList" class="compact-list"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Atrasadas</h2>
+              <span id="lateBadge">0</span>
+            </div>
+            <div id="lateList" class="compact-list"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="app-view" id="subjectsView" data-view="subjects">
+        <section class="catalog">
+          <div class="catalog-toolbar">
+            <div class="search-box">
+              <i data-lucide="search"></i>
+              <input id="searchInput" type="search" placeholder="Buscar matéria, código ou requisito" />
+            </div>
+            <select id="statusFilter" aria-label="Filtrar por status">
+              <option value="all">Todas</option>
+              <option value="done">Concluídas</option>
+              <option value="doing">Em curso</option>
+              <option value="planned">Planejadas</option>
+              <option value="open">Liberadas</option>
+              <option value="blocked">Bloqueadas</option>
+              <option value="late">Atrasadas</option>
+            </select>
+            <button id="addSubjectBtn" class="primary-button" type="button">
+              <i data-lucide="plus"></i>
+              Matéria
+            </button>
+          </div>
+
+          <div id="subjectGrid" class="subject-grid"></div>
+        </section>
+      </section>
+
+      <section class="app-view" id="flowView" data-view="flow">
+        <section class="flow-shell">
+          <div class="flow-toolbar">
+            <div class="search-box flow-search">
+              <i data-lucide="search"></i>
+              <input id="flowSearchInput" type="search" placeholder="Buscar no fluxograma" />
+            </div>
+            <select id="flowStatusFilter" aria-label="Filtrar fluxograma por status">
+              <option value="all">Todos status</option>
+              <option value="done">Concluídas</option>
+              <option value="doing">Em curso</option>
+              <option value="planned">Planejadas</option>
+              <option value="open">Liberadas</option>
+              <option value="blocked">Bloqueadas</option>
+              <option value="late">Atrasadas</option>
+            </select>
+          </div>
+          <div class="flow-content">
+            <div id="flowchartView" class="flowchart-view">
+              <div id="flowchartGrid" class="flowchart-grid"></div>
+            </div>
+            <aside id="flowDetails" class="flow-details"></aside>
+          </div>
+        </section>
+      </section>
+
+      <section class="app-view" id="scheduleView" data-view="schedule">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Grade horária do semestre</h2>
+            <span id="scheduleCount">0</span>
+          </div>
+          <div id="scheduleGrid" class="schedule-grid"></div>
+        </section>
+      </section>
+
+      <section class="app-view" id="optativesView" data-view="optatives">
+        <section class="optative-panel panel">
+          <div class="panel-heading">
+            <h2>Optativas obrigatórias</h2>
+            <span>4 slots</span>
+          </div>
+          <div id="optativeSlots" class="optative-slots"></div>
+        </section>
+      </section>
+
+      <section class="app-view" id="reportView" data-view="report">
+        <section class="metrics-grid compact-metrics">
+          <article class="metric">
+            <span>Média do semestre</span>
+            <strong id="termAverage">-</strong>
+          </article>
+          <article class="metric">
+            <span>Faltas registradas</span>
+            <strong id="termAbsences">0</strong>
+          </article>
+          <article class="metric">
+            <span>Menor frequência</span>
+            <strong id="lowestFrequency">-</strong>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Boletim do semestre</h2>
+            <span>2026/1</span>
+          </div>
+          <div class="table-wrap">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Disciplina</th>
+                  <th>AP1</th>
+                  <th>AP2</th>
+                  <th>PF</th>
+                  <th>Faltas</th>
+                  <th>Freq.</th>
+                  <th>Situação</th>
+                </tr>
+              </thead>
+              <tbody id="reportTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="report-grid">
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Registrar falta</h2>
+              <span id="absenceCount">0</span>
+            </div>
+            <form id="absenceForm" class="absence-form">
+              <label>
+                Data
+                <input id="absenceDate" type="date" required />
+              </label>
+              <label>
+                Disciplina
+                <select id="absenceSubject" required></select>
+              </label>
+              <label>
+                Aulas perdidas
+                <input id="absenceClasses" type="number" min="1" max="8" value="2" required />
+              </label>
+              <label>
+                Observação
+                <input id="absenceNote" placeholder="Ex.: consulta, atraso, viagem" />
+              </label>
+              <button class="primary-button" type="submit">
+                <i data-lucide="plus"></i>
+                Adicionar falta
+              </button>
+            </form>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Dias faltosos</h2>
+              <span id="absenceLogCount">0</span>
+            </div>
+            <div id="absenceLog" class="absence-log"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="app-view" id="gradesView" data-view="grades">
+        <section class="metrics-grid compact-metrics">
+          <article class="metric">
+            <span>Coeficiente estimado</span>
+            <strong id="gradesCoef">-</strong>
+          </article>
+          <article class="metric">
+            <span>Matérias com nota</span>
+            <strong id="gradedCount">0</strong>
+          </article>
+          <article class="metric">
+            <span>Créditos com nota</span>
+            <strong id="gradedCredits">0</strong>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Notas por disciplina</h2>
+            <span id="gradeRowsCount">0</span>
+          </div>
+          <div class="table-wrap">
+            <table class="grades-table">
+              <thead>
+                <tr>
+                  <th>Disciplina</th>
+                  <th>Status</th>
+                  <th>Créditos</th>
+                  <th>Nota</th>
+                </tr>
+              </thead>
+              <tbody id="gradesTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navegação principal">
+      <button class="nav-button active" type="button" data-tab="dashboard" title="Painel">
+        <i data-lucide="layout-dashboard"></i>
+        <span>Painel</span>
+      </button>
+      <button class="nav-button" type="button" data-tab="subjects" title="Matérias">
+        <i data-lucide="book-open"></i>
+        <span>Matérias</span>
+      </button>
+      <button class="nav-button" type="button" data-tab="flow" title="Fluxograma">
+        <i data-lucide="workflow"></i>
+        <span>Fluxo</span>
+      </button>
+      <button class="nav-button" type="button" data-tab="schedule" title="Horário">
+        <i data-lucide="calendar-days"></i>
+        <span>Horário</span>
+      </button>
+      <button class="nav-button" type="button" data-tab="optatives" title="Optativas">
+        <i data-lucide="panel-top"></i>
+        <span>Optativas</span>
+      </button>
+      <button class="nav-button" type="button" data-tab="report" title="Boletim">
+        <i data-lucide="clipboard-list"></i>
+        <span>Boletim</span>
+      </button>
+      <button class="nav-button" type="button" data-tab="grades" title="Notas">
+        <i data-lucide="graduation-cap"></i>
+        <span>Notas</span>
+      </button>
+    </nav>
+
+    <dialog id="subjectDialog">
+      <form method="dialog" id="subjectForm" class="dialog-card">
+        <div class="dialog-heading">
+          <h2 id="dialogTitle">Editar matéria</h2>
+          <button class="icon-button" id="closeDialogBtn" type="button" title="Fechar">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <input id="subjectId" type="hidden" />
+        <label>
+          Nome
+          <input id="subjectName" required />
+        </label>
+        <label>
+          Código
+          <input id="subjectCode" required />
+        </label>
+        <div class="two-cols">
+          <label>
+            Período ideal
+            <input id="subjectPeriod" type="number" min="1" max="20" required />
+          </label>
+          <label>
+            Créditos
+            <input id="subjectCredits" type="number" min="1" max="20" required />
+          </label>
+        </div>
+        <label>
+          Pré-requisitos
+          <select id="subjectPrereqs" multiple></select>
+        </label>
+        <div class="dialog-actions">
+          <button id="deleteSubjectBtn" class="ghost-danger" type="button">Excluir</button>
+          <button class="primary-button" value="default" type="submit">Salvar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="syncDialog">
+      <form method="dialog" id="syncForm" class="dialog-card">
+        <div class="dialog-heading">
+          <h2>Sincronização</h2>
+          <button class="icon-button" id="closeSyncBtn" type="button" title="Fechar">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <p class="sync-status" id="syncStatus">Modo local.</p>
+        <label>
+          Supabase URL
+          <input id="supabaseUrl" placeholder="https://seu-projeto.supabase.co" />
+        </label>
+        <label>
+          Supabase publishable / anon key
+          <input id="supabaseAnonKey" placeholder="sb_publishable_... ou eyJ..." />
+        </label>
+        <div class="two-cols">
+          <label>
+            E-mail
+            <input id="syncEmail" type="email" autocomplete="email" />
+          </label>
+          <label>
+            Senha
+            <input id="syncPassword" type="password" autocomplete="current-password" />
+          </label>
+        </div>
+        <div class="sync-actions">
+          <button class="secondary-button" id="saveSyncConfigBtn" type="button">Salvar config</button>
+          <button class="secondary-button" id="signUpBtn" type="button">Criar conta</button>
+          <button class="primary-button" id="signInBtn" type="button">Entrar</button>
+          <button class="secondary-button" id="syncNowBtn" type="button">Sincronizar</button>
+          <button class="ghost-danger" id="signOutBtn" type="button">Sair</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
