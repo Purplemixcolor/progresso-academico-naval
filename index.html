@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="styles.css" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2" defer></script>
-    <script src="app.js?v=2" defer></script>
+    <script src="app.js?v=4" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -61,6 +61,24 @@
       </section>
 
       <section class="app-view active" id="dashboardView" data-view="dashboard">
+        <section class="semester-strip" aria-label="Semestre atual">
+          <div>
+            <span id="semesterLabel">2026/1</span>
+            <strong id="semesterTitle">Semestre vigente</strong>
+            <p id="semesterSummary">Organize o que está cursando agora e o que vai puxar depois.</p>
+          </div>
+          <div class="semester-actions">
+            <button class="secondary-button" id="planNextBtn" type="button">
+              <i data-lucide="list-plus"></i>
+              Planejar próximo
+            </button>
+            <button class="primary-button" id="finishTermBtn" type="button">
+              <i data-lucide="check-check"></i>
+              Finalizar semestre
+            </button>
+          </div>
+        </section>
+
         <section class="metrics-grid" aria-label="Indicadores">
           <article class="metric">
             <span>Conclusão</span>
@@ -174,6 +192,23 @@
       </section>
 
       <section class="app-view" id="scheduleView" data-view="schedule">
+        <section class="planner-panel">
+          <div class="panel-heading">
+            <h2>Próximo semestre</h2>
+            <span id="nextPlanCount">0</span>
+          </div>
+          <div class="planner-layout">
+            <div>
+              <h3>Planejadas</h3>
+              <div id="nextPlanList" class="planner-list"></div>
+            </div>
+            <div>
+              <h3>Liberadas para puxar</h3>
+              <div id="nextCandidateList" class="planner-list"></div>
+            </div>
+          </div>
+        </section>
+
         <section class="panel">
           <div class="panel-heading">
             <h2>Grade horária do semestre</h2>

@@ -5,6 +5,9 @@ const DEFAULT_SYNC_CONFIG = {
   anonKey: "sb_publishable_lJpsJu-6vS9t9EW98yYt3g_fncBDMf7",
 };
 
+const CURRICULUM_FIX_VERSION = 1;
+const OFFICIAL_OPTATIVE_PERIOD = 9;
+
 const TCC1_PREREQS = [
   "estbas001",
   "estbas002",
@@ -234,6 +237,11 @@ const els = {
   openList: document.querySelector("#openList"),
   lateBadge: document.querySelector("#lateBadge"),
   lateList: document.querySelector("#lateList"),
+  semesterLabel: document.querySelector("#semesterLabel"),
+  semesterTitle: document.querySelector("#semesterTitle"),
+  semesterSummary: document.querySelector("#semesterSummary"),
+  planNextBtn: document.querySelector("#planNextBtn"),
+  finishTermBtn: document.querySelector("#finishTermBtn"),
   subjectGrid: document.querySelector("#subjectGrid"),
   optativeSlots: document.querySelector("#optativeSlots"),
   flowchartView: document.querySelector("#flowchartView"),
@@ -243,6 +251,9 @@ const els = {
   flowStatusFilter: document.querySelector("#flowStatusFilter"),
   scheduleCount: document.querySelector("#scheduleCount"),
   scheduleGrid: document.querySelector("#scheduleGrid"),
+  nextPlanCount: document.querySelector("#nextPlanCount"),
+  nextPlanList: document.querySelector("#nextPlanList"),
+  nextCandidateList: document.querySelector("#nextCandidateList"),
   gradesCoef: document.querySelector("#gradesCoef"),
   gradedCount: document.querySelector("#gradedCount"),
   gradedCredits: document.querySelector("#gradedCredits"),
@@ -310,6 +321,13 @@ function migrateState({ silent = false } = {}) {
   state.optativeChoices = { ...defaultState.optativeChoices, ...state.optativeChoices };
   state.termReport = { ...structuredClone(defaultState.termReport), ...state.termReport };
   state.absenceLog ||= [];
+  state.meta ||= {};
+  if ((state.meta.curriculumFixVersion || 0) < CURRICULUM_FIX_VERSION) {
+    state.subjects.forEach((subject) => {
+      if (subject.selectableOptative) subject.idealPeriod = OFFICIAL_OPTATIVE_PERIOD;
+    });
+    state.meta.curriculumFixVersion = CURRICULUM_FIX_VERSION;
+  }
   state.subjects = state.subjects.map((subject) => {
     const { chance, priority, ...cleanSubject } = subject;
     return { grade: null, equivalence: "", category: "required", selectableOptative: false, ...cleanSubject };
@@ -326,6 +344,22 @@ function persist() {
 
 function persistLocalOnly() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function parseDecimal(value) {
+  if (value === "" || value === null || value === undefined) return "";
+  const normalized = String(value).replace(",", ".").trim();
+  if (!normalized) return "";
+  const number = Number(normalized);
+  if (!Number.isFinite(number)) return null;
+  return Math.max(0, Math.min(10, number));
+}
+
+function parseWhole(value) {
+  if (value === "" || value === null || value === undefined) return "";
+  const number = Number(String(value).replace(",", "."));
+  if (!Number.isFinite(number)) return null;
+  return Math.max(0, Math.round(number));
 }
 
 function loadSyncConfig() {
@@ -513,6 +547,18 @@ function formatPeriodDate(period) {
   return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 }
 
+function nextSemesterLabel(label = state.settings.semesterLabel) {
+  const [yearText, termText] = String(label || "").split("/");
+  const year = Number(yearText) || new Date().getFullYear();
+  const term = Number(termText) || 1;
+  return term === 1 ? `${year}/2` : `${year + 1}/1`;
+}
+
+function reportNumber(report, field) {
+  const parsed = parseDecimal(report[field]);
+  return parsed === "" || parsed === null ? null : parsed;
+}
+
 function chosenOptative(slotId) {
   const chosenId = state.optativeChoices?.[slotId];
   return chosenId ? subjectMap().get(chosenId) : null;
@@ -595,9 +641,12 @@ function forecastGraduationPeriod() {
 }
 
 function coefficient() {
-  const graded = state.subjects.filter((subject) => subject.grade !== null && subject.grade !== "" && Number.isFinite(Number(subject.grade)));
+  const graded = state.subjects.filter((subject) => {
+    const grade = parseDecimal(subject.grade);
+    return grade !== "" && grade !== null && Number.isFinite(grade);
+  });
   const credits = graded.reduce((sum, subject) => sum + Number(subject.credits), 0);
-  const weighted = graded.reduce((sum, subject) => sum + Number(subject.grade) * Number(subject.credits), 0);
+  const weighted = graded.reduce((sum, subject) => sum + parseDecimal(subject.grade) * Number(subject.credits), 0);
   return {
     value: credits ? weighted / credits : null,
     count: graded.length,
@@ -640,6 +689,9 @@ function render() {
   els.lateCount.textContent = lateSubjects.length;
   els.openCount.textContent = openSubjects.length;
   els.lateBadge.textContent = lateSubjects.length;
+  els.semesterLabel.textContent = state.settings.semesterLabel;
+  els.semesterTitle.textContent = `${state.settings.currentPeriod}º período em andamento`;
+  els.semesterSummary.textContent = `${subjectStats.doing} em curso · ${subjectStats.planned} planejadas para ${nextSemesterLabel()}`;
 
   renderCompactList(els.openList, openSubjects, (subject) => `Abre no ${openingPeriod(subject)}º período`);
   renderCompactList(els.lateList, lateSubjects, (subject) => `Atrasada desde o ${subject.idealPeriod}º período`);
@@ -766,7 +818,7 @@ function getFlowSubjects() {
   const query = els.flowSearchInput.value.trim().toLowerCase();
   const filter = els.flowStatusFilter.value;
   return state.subjects
-    .filter((subject) => !subject.selectableOptative)
+    .filter((subject) => !subject.selectableOptative && !subject.id.startsWith("optativa"))
     .filter((subject) => {
       const status = statusFor(subject).key;
       const matchesQuery = !query || [subject.name, subject.code].join(" ").toLowerCase().includes(query);
@@ -870,7 +922,8 @@ function subjectCard(subject, byId) {
   const effectiveOpening = openingPeriod(subject);
   const offeringText = isOfferedInPeriod(subject, Number(state.settings.currentPeriod)) ? "abre em períodos como o atual" : `próxima oferta ${effectiveOpening}º`;
   const lateText = isLate(subject) ? `<span>Atrasada desde o ${subject.idealPeriod}º período</span>` : "";
-  const gradeText = subject.grade !== null && subject.grade !== "" && Number.isFinite(Number(subject.grade)) ? `<span>Nota: ${Number(subject.grade).toFixed(2)}</span>` : "";
+  const parsedGrade = parseDecimal(subject.grade);
+  const gradeText = parsedGrade !== null && parsedGrade !== "" && Number.isFinite(parsedGrade) ? `<span>Nota: ${parsedGrade.toFixed(2)}</span>` : "";
   const equivalenceText = subject.equivalence ? `<span>Equivalência: ${subject.equivalence}</span>` : "";
 
   return `
@@ -928,6 +981,48 @@ function renderSchedule() {
       `;
     })
     .join("");
+  renderNextPlanner();
+}
+
+function nextSemesterCandidates() {
+  const nextPeriod = Number(state.settings.currentPeriod) + 1;
+  return state.subjects
+    .filter((subject) => !subject.selectableOptative && !subject.id.startsWith("optativa"))
+    .filter((subject) => subject.status === "pending")
+    .filter((subject) => prereqsDone(subject) && isOfferedInPeriod(subject, nextPeriod))
+    .sort((a, b) => {
+      const lateA = a.idealPeriod < nextPeriod ? -1 : 0;
+      const lateB = b.idealPeriod < nextPeriod ? -1 : 0;
+      return lateA - lateB || a.idealPeriod - b.idealPeriod || a.name.localeCompare(b.name);
+    });
+}
+
+function renderNextPlanner() {
+  const planned = state.subjects
+    .filter((subject) => subject.status === "planned")
+    .sort((a, b) => a.idealPeriod - b.idealPeriod || a.name.localeCompare(b.name));
+  const candidates = nextSemesterCandidates();
+  els.nextPlanCount.textContent = planned.length;
+  els.nextPlanList.innerHTML = planned.length
+    ? planned.map((subject) => plannerItem(subject, "remove-plan")).join("")
+    : `<div class="empty">Nenhuma matéria planejada ainda.</div>`;
+  els.nextCandidateList.innerHTML = candidates.length
+    ? candidates.slice(0, 14).map((subject) => plannerItem(subject, "add-plan")).join("")
+    : `<div class="empty">Nenhuma matéria liberada para o próximo período com as regras atuais.</div>`;
+}
+
+function plannerItem(subject, action) {
+  const buttonText = action === "add-plan" ? "Planejar" : "Remover";
+  const buttonClass = action === "add-plan" ? "secondary-button" : "ghost-danger";
+  return `
+    <article class="planner-item" data-subject-id="${subject.id}">
+      <div>
+        <strong>${subject.name}</strong>
+        <span>${subject.code} · ${subject.credits} cr · ideal ${subject.idealPeriod}º</span>
+      </div>
+      <button class="${buttonClass}" type="button" data-planner-action="${action}">${buttonText}</button>
+    </article>
+  `;
 }
 
 function termSubjects() {
@@ -956,7 +1051,7 @@ function totalAbsences(subjectId) {
 function currentAverage(report) {
   const grades = [report.ap1, report.ap2]
     .filter((value) => value !== "" && value !== null && value !== undefined)
-    .map(Number)
+    .map((value) => parseDecimal(value))
     .filter((value) => Number.isFinite(value));
   if (!grades.length) return null;
   return grades.reduce((sum, value) => sum + value, 0) / grades.length;
@@ -964,7 +1059,7 @@ function currentAverage(report) {
 
 function finalAverage(report) {
   if (report.pf === "" || report.pf === null || report.pf === undefined) return currentAverage(report);
-  const pf = Number(report.pf);
+  const pf = parseDecimal(report.pf);
   if (Number.isFinite(pf)) return pf;
   return currentAverage(report);
 }
@@ -1011,10 +1106,10 @@ function renderReport() {
       <tr data-report-subject="${subject.id}">
         <td>${subject.code}</td>
         <td><strong>${subject.name}</strong></td>
-        <td><input data-report-field="ap1" type="number" min="0" max="10" step="0.01" value="${report.ap1 ?? ""}" /></td>
-        <td><input data-report-field="ap2" type="number" min="0" max="10" step="0.01" value="${report.ap2 ?? ""}" /></td>
-        <td><input data-report-field="pf" type="number" min="0" max="10" step="0.01" value="${report.pf ?? ""}" /></td>
-        <td><input data-report-field="baseAbsences" type="number" min="0" max="99" step="1" value="${report.baseAbsences ?? 0}" /></td>
+        <td><input data-report-field="ap1" type="text" inputmode="decimal" value="${report.ap1 ?? ""}" placeholder="0-10" /></td>
+        <td><input data-report-field="ap2" type="text" inputmode="decimal" value="${report.ap2 ?? ""}" placeholder="0-10" /></td>
+        <td><input data-report-field="pf" type="text" inputmode="decimal" value="${report.pf ?? ""}" placeholder="0-10" /></td>
+        <td><input data-report-field="baseAbsences" type="text" inputmode="numeric" value="${report.baseAbsences ?? 0}" /></td>
         <td>${freq.toFixed(1)}%</td>
         <td>${situation}</td>
       </tr>
@@ -1061,7 +1156,7 @@ function renderGrades() {
           <td><strong>${subject.name}</strong><br><span class="subject-code">${subject.code}</span></td>
           <td><span class="status-pill status-${status.key}">${status.label}</span></td>
           <td>${subject.credits}</td>
-          <td><input class="grade-input" type="number" min="0" max="10" step="0.01" value="${subject.grade ?? ""}" placeholder="0-10" /></td>
+          <td><input class="grade-input" type="text" inputmode="decimal" value="${subject.grade ?? ""}" placeholder="0-10" /></td>
         </tr>
       `;
     })
@@ -1151,6 +1246,51 @@ function setMainTab(tab) {
   });
 }
 
+function openNextPlanning() {
+  setMainTab("schedule");
+  requestAnimationFrame(() => document.querySelector(".planner-panel")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+}
+
+function finalizeCurrentTerm() {
+  const doing = state.subjects.filter((subject) => subject.status === "doing");
+  if (!doing.length) {
+    alert("Não há matérias marcadas como em curso neste semestre.");
+    return;
+  }
+  const label = state.settings.semesterLabel;
+  const confirmed = confirm(`Finalizar ${label}?\n\nMatérias com média final 6,0 ou maior entram como concluídas. As demais voltam para pendente. Matérias planejadas passam a ser o novo semestre em curso.`);
+  if (!confirmed) return;
+
+  doing.forEach((subject) => {
+    const avg = finalAverage(reportFor(subject.id));
+    if (avg !== null && avg >= 6) {
+      subject.status = "done";
+      subject.completedPeriod = Number(state.settings.currentPeriod);
+      subject.grade = Number(avg.toFixed(2));
+    } else {
+      subject.status = "pending";
+      subject.completedPeriod = null;
+    }
+  });
+
+  state.subjects
+    .filter((subject) => subject.status === "planned")
+    .forEach((subject) => {
+      subject.status = "doing";
+      subject.completedPeriod = null;
+      if (!state.schedule.some((item) => item.subjectId === subject.id)) state.schedule.push(sch(subject.id, "", "", "", `Planejada para ${nextSemesterLabel(label)}`));
+    });
+
+  state.schedule = state.schedule.filter((item) => state.subjects.find((subject) => subject.id === item.subjectId)?.status === "doing");
+  state.termReport = {};
+  state.absenceLog = [];
+  state.settings.currentPeriod = Number(state.settings.currentPeriod) + 1;
+  state.settings.semesterLabel = nextSemesterLabel(label);
+  persist();
+  render();
+  setMainTab("dashboard");
+}
+
 function selectFlowSubject(subjectId) {
   flowSelectedId = subjectId;
   renderFlowchart(getFlowSubjects());
@@ -1210,6 +1350,8 @@ els.deleteSubjectBtn.addEventListener("click", deleteSubject);
 els.exportBtn.addEventListener("click", exportData);
 els.importInput.addEventListener("change", importData);
 els.resetBtn.addEventListener("click", resetData);
+els.planNextBtn.addEventListener("click", openNextPlanning);
+els.finishTermBtn.addEventListener("click", finalizeCurrentTerm);
 els.syncBtn.addEventListener("click", () => {
   const config = loadSyncConfig();
   els.supabaseUrl.value = config.url || "";
@@ -1253,7 +1395,18 @@ els.reportTableBody.addEventListener("input", (event) => {
   const row = event.target.closest("[data-report-subject]");
   const report = reportFor(row.dataset.reportSubject);
   const field = input.dataset.reportField;
-  report[field] = input.value === "" ? "" : Math.max(0, Number(input.value));
+  report[field] = input.value;
+  persist();
+});
+
+els.reportTableBody.addEventListener("change", (event) => {
+  const input = event.target.closest("[data-report-field]");
+  if (!input) return;
+  const row = event.target.closest("[data-report-subject]");
+  const report = reportFor(row.dataset.reportSubject);
+  const field = input.dataset.reportField;
+  const parsed = field === "baseAbsences" ? parseWhole(input.value) : parseDecimal(input.value);
+  report[field] = parsed === null ? "" : parsed;
   persist();
   renderReport();
 });
@@ -1315,11 +1468,35 @@ els.optativeSlots.addEventListener("input", (event) => {
   if (!input) return;
   const slotSubject = state.subjects.find((subject) => subject.id === input.dataset.optativeGrade);
   if (!slotSubject) return;
-  slotSubject.grade = input.value === "" ? null : Math.max(0, Math.min(10, Number(input.value)));
+  slotSubject.grade = input.value;
+  persist();
+});
+
+els.optativeSlots.addEventListener("change", (event) => {
+  const input = event.target.closest("[data-optative-grade]");
+  if (!input) return;
+  const slotSubject = state.subjects.find((subject) => subject.id === input.dataset.optativeGrade);
+  if (!slotSubject) return;
+  const parsed = parseDecimal(input.value);
+  slotSubject.grade = parsed === "" ? null : parsed;
   persist();
   renderGrades();
   const cr = coefficient();
   els.courseCoef.textContent = cr.value === null ? "-" : cr.value.toFixed(3);
+});
+
+[els.nextPlanList, els.nextCandidateList].forEach((container) => {
+  container.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-planner-action]");
+    if (!button) return;
+    const card = event.target.closest("[data-subject-id]");
+    const subject = state.subjects.find((item) => item.id === card.dataset.subjectId);
+    if (!subject) return;
+    subject.status = button.dataset.plannerAction === "add-plan" ? "planned" : "pending";
+    subject.completedPeriod = null;
+    persist();
+    render();
+  });
 });
 
 els.flowchartGrid.addEventListener("click", (event) => {
@@ -1339,7 +1516,18 @@ els.gradesTableBody.addEventListener("input", (event) => {
   if (!input) return;
   const row = event.target.closest("[data-subject-id]");
   const subject = state.subjects.find((item) => item.id === row.dataset.subjectId);
-  subject.grade = input.value === "" ? null : Math.max(0, Math.min(10, Number(input.value)));
+  subject.grade = input.value;
+  persist();
+});
+
+els.gradesTableBody.addEventListener("change", (event) => {
+  const input = event.target.closest(".grade-input");
+  if (!input) return;
+  const row = event.target.closest("[data-subject-id]");
+  const subject = state.subjects.find((item) => item.id === row.dataset.subjectId);
+  const parsed = parseDecimal(input.value);
+  subject.grade = parsed === "" ? null : parsed;
+  input.value = subject.grade ?? "";
   persist();
   const cr = coefficient();
   els.courseCoef.textContent = cr.value === null ? "-" : cr.value.toFixed(3);
