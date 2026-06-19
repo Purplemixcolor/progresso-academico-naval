@@ -223,6 +223,15 @@ select:disabled {
   font-weight: 650;
 }
 
+.metric small {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
 .metric.alert strong {
   color: var(--red);
 }

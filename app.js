@@ -235,8 +235,11 @@ const els = {
   monthsPerPeriod: document.querySelector("#monthsPerPeriod"),
   completionPct: document.querySelector("#completionPct"),
   progressFill: document.querySelector("#progressFill"),
+  completionBasis: document.querySelector("#completionBasis"),
   creditsDone: document.querySelector("#creditsDone"),
+  creditsRemaining: document.querySelector("#creditsRemaining"),
   subjectsDone: document.querySelector("#subjectsDone"),
+  subjectsBreakdown: document.querySelector("#subjectsBreakdown"),
   pendingCount: document.querySelector("#pendingCount"),
   doneSubjectCount: document.querySelector("#doneSubjectCount"),
   doingSubjectCount: document.querySelector("#doingSubjectCount"),
@@ -244,6 +247,7 @@ const els = {
   pendingSubjectCount: document.querySelector("#pendingSubjectCount"),
   courseCoef: document.querySelector("#courseCoef"),
   graduationDate: document.querySelector("#graduationDate"),
+  graduationPeriod: document.querySelector("#graduationPeriod"),
   lateCount: document.querySelector("#lateCount"),
   openCount: document.querySelector("#openCount"),
   openList: document.querySelector("#openList"),
@@ -683,6 +687,13 @@ function render() {
   const doneCredits = trackSubjects
     .filter((subject) => subject.status === "done")
     .reduce((sum, subject) => sum + Number(subject.credits), 0);
+  const doingCredits = trackSubjects
+    .filter((subject) => subject.status === "doing")
+    .reduce((sum, subject) => sum + Number(subject.credits), 0);
+  const plannedCredits = trackSubjects
+    .filter((subject) => subject.status === "planned")
+    .reduce((sum, subject) => sum + Number(subject.credits), 0);
+  const remainingCredits = Math.max(0, totalCredits - doneCredits);
   const subjectStats = {
     total: trackSubjects.length,
     done: trackSubjects.filter((subject) => subject.status === "done").length,
@@ -690,30 +701,37 @@ function render() {
     planned: trackSubjects.filter((subject) => subject.status === "planned").length,
     pending: trackSubjects.filter((subject) => subject.status !== "done").length,
   };
-  const pct = totalCredits ? Math.round((doneCredits / totalCredits) * 100) : 0;
+  const pct = totalCredits ? Math.min(100, Math.round((doneCredits / totalCredits) * 100)) : 0;
   const openSubjects = state.subjects.filter(
     (subject) => subject.status !== "done" && prereqsDone(subject) && isOfferedInPeriod(subject, Number(state.settings.currentPeriod))
   );
   const lateSubjects = state.subjects.filter(isLate);
   const cr = coefficient();
+  const forecast = buildForecastPlan();
+  const graduationPeriod = forecast.graduationPeriod;
+  const periodsRemaining = Math.max(0, graduationPeriod - Number(state.settings.currentPeriod));
 
   els.completionPct.textContent = `${pct}%`;
   els.progressFill.style.width = `${pct}%`;
+  els.completionBasis.textContent = `${doneCredits} de ${totalCredits} créditos adquiridos`;
   els.creditsDone.textContent = `${doneCredits} / ${totalCredits}`;
+  els.creditsRemaining.textContent = `${remainingCredits} créditos para integralizar · ${doingCredits} em curso agora`;
   els.subjectsDone.textContent = `${subjectStats.done} / ${subjectStats.total}`;
+  els.subjectsBreakdown.textContent = `${subjectStats.doing} em curso · ${subjectStats.pending} ainda não concluídas`;
   els.pendingCount.textContent = subjectStats.pending;
   els.doneSubjectCount.textContent = subjectStats.done;
   els.doingSubjectCount.textContent = subjectStats.doing;
   els.plannedSubjectCount.textContent = subjectStats.planned;
   els.pendingSubjectCount.textContent = subjectStats.pending;
   els.courseCoef.textContent = cr.value === null ? "-" : cr.value.toFixed(3);
-  els.graduationDate.textContent = formatPeriodDate(forecastGraduationPeriod());
+  els.graduationDate.textContent = formatPeriodDate(graduationPeriod);
+  els.graduationPeriod.textContent = `${graduationPeriod}º período estimado · ${periodsRemaining} período${periodsRemaining === 1 ? "" : "s"} restante${periodsRemaining === 1 ? "" : "s"}`;
   els.lateCount.textContent = lateSubjects.length;
   els.openCount.textContent = openSubjects.length;
   els.lateBadge.textContent = lateSubjects.length;
   els.semesterLabel.textContent = state.settings.semesterLabel;
   els.semesterTitle.textContent = `${state.settings.currentPeriod}º período em andamento`;
-  els.semesterSummary.textContent = `${subjectStats.doing} em curso · ${subjectStats.planned} planejadas para ${nextSemesterLabel()}`;
+  els.semesterSummary.textContent = `${subjectStats.doing} em curso (${doingCredits} cr) · ${subjectStats.planned} planejadas (${plannedCredits} cr) · previsão por créditos, oferta par/ímpar e pré-requisitos`;
 
   renderCompactList(els.openList, openSubjects, (subject) => `Abre no ${openingPeriod(subject)}º período`);
   renderCompactList(els.lateList, lateSubjects, (subject) => `Atrasada desde o ${subject.idealPeriod}º período`);
