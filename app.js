@@ -376,6 +376,14 @@ function parseWhole(value) {
   return Math.max(0, Math.round(number));
 }
 
+function escapeAttribute(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
 function loadSyncConfig() {
   try {
     return { ...DEFAULT_SYNC_CONFIG, ...(JSON.parse(localStorage.getItem(SYNC_CONFIG_KEY)) || {}) };
@@ -1048,7 +1056,8 @@ function termSubjects() {
 }
 
 function reportFor(subjectId) {
-  if (!state.termReport[subjectId]) state.termReport[subjectId] = { ap1: "", ap2: "", pf: "", baseAbsences: 0 };
+  if (!state.termReport[subjectId]) state.termReport[subjectId] = { ap1: "", ap2: "", pf: "", baseAbsences: 0, withdrawn: false, withdrawalReason: "" };
+  state.termReport[subjectId] = { withdrawn: false, withdrawalReason: "", ...state.termReport[subjectId] };
   return state.termReport[subjectId];
 }
 
@@ -1112,6 +1121,7 @@ function frequency(subject, absences) {
 }
 
 function reportSituation(subject, report, absences) {
+  if (report.withdrawn) return "Em repouso";
   const freq = frequency(subject, absences);
   if (freq < 75) return "Reprovado por falta";
   const { ap1, ap2, pf } = reportGrades(report);
@@ -1125,6 +1135,7 @@ function reportSituation(subject, report, absences) {
 
 function isReportApproved(subject) {
   const report = reportFor(subject.id);
+  if (report.withdrawn) return false;
   if (frequency(subject, totalAbsences(subject.id)) < 75) return false;
   const { ap1, ap2, pf } = reportGrades(report);
   if (ap1 === null || ap2 === null) return false;
@@ -1142,14 +1153,15 @@ function renderReport() {
     const report = reportFor(subject.id);
     const absences = totalAbsences(subject.id);
     const freq = frequency(subject, absences);
-    const avg = finalAverage(report);
+    const avg = report.withdrawn ? null : finalAverage(report);
     return { subject, report, absences, freq, avg, situation: reportSituation(subject, report, absences) };
   });
 
-  const graded = rows.filter((row) => row.avg !== null);
+  const activeRows = rows.filter((row) => !row.report.withdrawn);
+  const graded = activeRows.filter((row) => row.avg !== null);
   const termAvg = graded.length ? graded.reduce((sum, row) => sum + row.avg, 0) / graded.length : null;
-  const totalAbs = rows.reduce((sum, row) => sum + row.absences, 0);
-  const lowest = rows.length ? Math.min(...rows.map((row) => row.freq)) : null;
+  const totalAbs = activeRows.reduce((sum, row) => sum + row.absences, 0);
+  const lowest = activeRows.length ? Math.min(...activeRows.map((row) => row.freq)) : null;
   els.termAverage.textContent = termAvg === null ? "-" : termAvg.toFixed(2);
   els.termAbsences.textContent = totalAbs;
   els.lowestFrequency.textContent = lowest === null ? "-" : `${lowest.toFixed(1)}%`;
@@ -1157,16 +1169,28 @@ function renderReport() {
 
   els.reportTableBody.innerHTML = rows
     .map(({ subject, report, absences, freq, avg, situation }) => {
-      const pfUnlocked = isFinalExamUnlocked(report);
+      const isWithdrawn = Boolean(report.withdrawn);
+      const pfUnlocked = !isWithdrawn && isFinalExamUnlocked(report);
+      const disabled = isWithdrawn ? "disabled" : "";
       return `
-        <tr data-report-subject="${subject.id}">
+        <tr data-report-subject="${subject.id}" class="${isWithdrawn ? "report-row-resting" : ""}">
           <td>${subject.code}</td>
-          <td><strong>${subject.name}</strong></td>
-          <td><input data-report-field="ap1" type="text" inputmode="decimal" value="${report.ap1 ?? ""}" placeholder="0-10" /></td>
-          <td><input data-report-field="ap2" type="text" inputmode="decimal" value="${report.ap2 ?? ""}" placeholder="0-10" /></td>
+          <td>
+            <strong>${subject.name}</strong>
+            ${isWithdrawn ? `<span class="resting-note">Em repouso por desistência${report.withdrawalReason ? `: ${escapeAttribute(report.withdrawalReason)}` : ""}</span>` : ""}
+            <div class="report-rest-controls">
+              <label class="resting-toggle">
+                <input data-report-withdrawn type="checkbox" ${isWithdrawn ? "checked" : ""} />
+                <span>Desisti</span>
+              </label>
+              <input class="withdrawal-reason-input" data-report-withdrawal-reason type="text" value="${escapeAttribute(report.withdrawalReason)}" placeholder="Motivo breve" ${isWithdrawn ? "" : "disabled"} />
+            </div>
+          </td>
+          <td><input data-report-field="ap1" type="text" inputmode="decimal" value="${report.ap1 ?? ""}" placeholder="0-10" ${disabled} /></td>
+          <td><input data-report-field="ap2" type="text" inputmode="decimal" value="${report.ap2 ?? ""}" placeholder="0-10" ${disabled} /></td>
           <td><input data-report-field="pf" type="text" inputmode="decimal" value="${pfUnlocked ? report.pf ?? "" : ""}" placeholder="${pfUnlocked ? "0-10" : "bloqueada"}" ${pfUnlocked ? "" : "disabled"} /></td>
-          <td><input data-report-field="baseAbsences" type="text" inputmode="numeric" value="${report.baseAbsences ?? 0}" /></td>
-          <td>${freq.toFixed(1)}%</td>
+          <td><input data-report-field="baseAbsences" type="text" inputmode="numeric" value="${report.baseAbsences ?? 0}" ${disabled} /></td>
+          <td>${isWithdrawn ? "-" : `${freq.toFixed(1)}%`}</td>
           <td>${situation}</td>
         </tr>
       `;
@@ -1319,8 +1343,12 @@ function finalizeCurrentTerm() {
   if (!confirmed) return;
 
   doing.forEach((subject) => {
-    const avg = finalAverage(reportFor(subject.id));
-    if (isReportApproved(subject)) {
+    const report = reportFor(subject.id);
+    const avg = finalAverage(report);
+    if (report.withdrawn) {
+      subject.status = "pending";
+      subject.completedPeriod = null;
+    } else if (isReportApproved(subject)) {
       subject.status = "done";
       subject.completedPeriod = Number(state.settings.currentPeriod);
       subject.grade = avg === null ? null : Number(avg.toFixed(2));
@@ -1447,6 +1475,19 @@ els.scheduleGrid.addEventListener("input", (event) => {
 });
 
 els.reportTableBody.addEventListener("input", (event) => {
+  const reasonInput = event.target.closest("[data-report-withdrawal-reason]");
+  if (reasonInput) {
+    const row = event.target.closest("[data-report-subject]");
+    const report = reportFor(row.dataset.reportSubject);
+    report.withdrawalReason = reasonInput.value;
+    const note = row.querySelector(".resting-note");
+    if (note) {
+      note.textContent = `Em repouso por desistência${report.withdrawalReason ? `: ${report.withdrawalReason}` : ""}`;
+    }
+    persist();
+    return;
+  }
+
   const input = event.target.closest("[data-report-field]");
   if (!input) return;
   const row = event.target.closest("[data-report-subject]");
@@ -1457,6 +1498,29 @@ els.reportTableBody.addEventListener("input", (event) => {
 });
 
 els.reportTableBody.addEventListener("change", (event) => {
+  const withdrawnToggle = event.target.closest("[data-report-withdrawn]");
+  if (withdrawnToggle) {
+    const row = event.target.closest("[data-report-subject]");
+    const report = reportFor(row.dataset.reportSubject);
+    report.withdrawn = withdrawnToggle.checked;
+    if (report.withdrawn) {
+      report.pf = "";
+    }
+    persist();
+    renderReport();
+    return;
+  }
+
+  const reasonInput = event.target.closest("[data-report-withdrawal-reason]");
+  if (reasonInput) {
+    const row = event.target.closest("[data-report-subject]");
+    const report = reportFor(row.dataset.reportSubject);
+    report.withdrawalReason = reasonInput.value.trim();
+    persist();
+    renderReport();
+    return;
+  }
+
   const input = event.target.closest("[data-report-field]");
   if (!input) return;
   const row = event.target.closest("[data-report-subject]");

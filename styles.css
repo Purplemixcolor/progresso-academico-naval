@@ -1091,6 +1091,57 @@ dialog::backdrop {
   max-width: 110px;
 }
 
+.report-row-resting {
+  background: #f5f7f2;
+}
+
+.report-row-resting td {
+  color: #52635b;
+}
+
+.report-row-resting td:first-child {
+  border-left: 4px solid #9cad8f;
+}
+
+.resting-note {
+  display: block;
+  margin-top: 4px;
+  color: #6f7d72;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.report-rest-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  max-width: 360px;
+}
+
+.resting-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  flex: 0 0 auto;
+  color: #3f554a;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.resting-toggle input {
+  width: 17px;
+  height: 17px;
+  accent-color: #6f8069;
+}
+
+.withdrawal-reason-input {
+  max-width: none !important;
+  min-width: 0;
+  flex: 1 1 160px;
+}
+
 .report-grid {
   display: grid;
   grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
@@ -1155,6 +1206,15 @@ dialog::backdrop {
 }
 
 @media (max-width: 680px) {
+  .report-rest-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .withdrawal-reason-input {
+    width: 100%;
+  }
+
   .topbar,
   .catalog-toolbar {
     align-items: stretch;
