@@ -214,6 +214,11 @@ function sch(subjectId, days = "", time = "", room = "", note = "Matriculado no 
   return { subjectId, days, time, room, note };
 }
 
+function isOptativeSlot(subject) {
+  const id = typeof subject === "string" ? subject : subject?.id;
+  return Boolean(id?.startsWith("optativa"));
+}
+
 let syncClient = null;
 let syncUser = null;
 let syncTimer = null;
@@ -967,11 +972,11 @@ function subjectCard(subject, byId) {
 
 function renderSchedule() {
   const byId = subjectMap();
-  const doingIds = state.subjects.filter((subject) => subject.status === "doing").map((subject) => subject.id);
+  const doingIds = state.subjects.filter((subject) => subject.status === "doing" && !isOptativeSlot(subject)).map((subject) => subject.id);
   doingIds.forEach((id) => {
     if (!state.schedule.some((item) => item.subjectId === id)) state.schedule.push(sch(id));
   });
-  state.schedule = state.schedule.filter((item) => byId.has(item.subjectId));
+  state.schedule = state.schedule.filter((item) => byId.has(item.subjectId) && !isOptativeSlot(item.subjectId));
   els.scheduleCount.textContent = state.schedule.length;
   els.scheduleGrid.innerHTML = state.schedule
     .map((item) => {
@@ -1008,7 +1013,7 @@ function nextSemesterCandidates() {
 
 function renderNextPlanner() {
   const planned = state.subjects
-    .filter((subject) => subject.status === "planned")
+    .filter((subject) => subject.status === "planned" && !isOptativeSlot(subject))
     .sort((a, b) => a.idealPeriod - b.idealPeriod || a.name.localeCompare(b.name));
   const candidates = nextSemesterCandidates();
   els.nextPlanCount.textContent = planned.length;
@@ -1036,8 +1041,8 @@ function plannerItem(subject, action) {
 
 function termSubjects() {
   const ids = new Set([
-    ...state.schedule.map((item) => item.subjectId),
-    ...state.subjects.filter((subject) => subject.status === "doing").map((subject) => subject.id),
+    ...state.schedule.filter((item) => !isOptativeSlot(item.subjectId)).map((item) => item.subjectId),
+    ...state.subjects.filter((subject) => subject.status === "doing" && !isOptativeSlot(subject)).map((subject) => subject.id),
   ]);
   return [...ids].map((id) => subjectMap().get(id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -1318,14 +1323,14 @@ function finalizeCurrentTerm() {
   });
 
   state.subjects
-    .filter((subject) => subject.status === "planned")
+    .filter((subject) => subject.status === "planned" && !isOptativeSlot(subject))
     .forEach((subject) => {
       subject.status = "doing";
       subject.completedPeriod = null;
       if (!state.schedule.some((item) => item.subjectId === subject.id)) state.schedule.push(sch(subject.id, "", "", "", `Planejada para ${nextSemesterLabel(label)}`));
     });
 
-  state.schedule = state.schedule.filter((item) => state.subjects.find((subject) => subject.id === item.subjectId)?.status === "doing");
+  state.schedule = state.schedule.filter((item) => !isOptativeSlot(item.subjectId) && state.subjects.find((subject) => subject.id === item.subjectId)?.status === "doing");
   state.termReport = {};
   state.absenceLog = [];
   state.settings.currentPeriod = Number(state.settings.currentPeriod) + 1;
