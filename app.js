@@ -1066,11 +1066,34 @@ function currentAverage(report) {
   return grades.reduce((sum, value) => sum + value, 0) / grades.length;
 }
 
+function reportGrades(report) {
+  const ap1 = reportNumber(report, "ap1");
+  const ap2 = reportNumber(report, "ap2");
+  const pf = reportNumber(report, "pf");
+  return { ap1, ap2, pf };
+}
+
+function directAverage(report) {
+  const { ap1, ap2 } = reportGrades(report);
+  if (ap1 === null || ap2 === null) return currentAverage(report);
+  return (ap1 + ap2) / 2;
+}
+
 function finalAverage(report) {
-  if (report.pf === "" || report.pf === null || report.pf === undefined) return currentAverage(report);
-  const pf = parseDecimal(report.pf);
-  if (Number.isFinite(pf)) return pf;
-  return currentAverage(report);
+  const { ap1, ap2, pf } = reportGrades(report);
+  const direct = directAverage(report);
+  if (direct === null) return null;
+  if (direct >= 8) return direct;
+  if (ap1 === null || ap2 === null || pf === null) return direct;
+  return (ap1 + ap2 + pf) / 3;
+}
+
+function neededFinalExamGrade(report) {
+  const { ap1, ap2 } = reportGrades(report);
+  if (ap1 === null || ap2 === null) return null;
+  const direct = (ap1 + ap2) / 2;
+  if (direct >= 8) return 0;
+  return Math.max(0, 18 - ap1 - ap2);
 }
 
 function frequency(subject, absences) {
@@ -1080,12 +1103,24 @@ function frequency(subject, absences) {
 
 function reportSituation(subject, report, absences) {
   const freq = frequency(subject, absences);
-  const avg = finalAverage(report);
-  if (freq < 75) return "Risco frequência";
-  if (avg === null) return subject.status === "doing" ? "Matriculado" : statusFor(subject).label;
-  if (avg >= 8) return "Aprovando";
-  if (avg >= 6) return "Atenção";
-  return "Risco nota";
+  if (freq < 75) return "Reprovado por falta";
+  const { ap1, ap2, pf } = reportGrades(report);
+  const direct = directAverage(report);
+  if (direct === null || ap1 === null || ap2 === null) return subject.status === "doing" ? "Matriculado" : statusFor(subject).label;
+  if (direct >= 8) return "Aprovado direto";
+  const needed = neededFinalExamGrade(report);
+  if (pf === null) return needed > 10 ? "PF insuficiente" : `Precisa PF ${needed.toFixed(1)}`;
+  return finalAverage(report) >= 6 ? "Aprovado com PF" : "Reprovado por nota";
+}
+
+function isReportApproved(subject) {
+  const report = reportFor(subject.id);
+  if (frequency(subject, totalAbsences(subject.id)) < 75) return false;
+  const { ap1, ap2, pf } = reportGrades(report);
+  if (ap1 === null || ap2 === null) return false;
+  if ((ap1 + ap2) / 2 >= 8) return true;
+  if (pf === null) return false;
+  return (ap1 + ap2 + pf) / 3 >= 6;
 }
 
 function renderReport() {
@@ -1272,10 +1307,10 @@ function finalizeCurrentTerm() {
 
   doing.forEach((subject) => {
     const avg = finalAverage(reportFor(subject.id));
-    if (avg !== null && avg >= 6) {
+    if (isReportApproved(subject)) {
       subject.status = "done";
       subject.completedPeriod = Number(state.settings.currentPeriod);
-      subject.grade = Number(avg.toFixed(2));
+      subject.grade = avg === null ? null : Number(avg.toFixed(2));
     } else {
       subject.status = "pending";
       subject.completedPeriod = null;
