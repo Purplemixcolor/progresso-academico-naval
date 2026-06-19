@@ -1101,6 +1101,11 @@ function neededFinalExamGrade(report) {
   return Math.max(0, 18 - ap1 - ap2);
 }
 
+function isFinalExamUnlocked(report) {
+  const { ap1, ap2 } = reportGrades(report);
+  return ap1 !== null && ap2 !== null && (ap1 + ap2) / 2 < 8;
+}
+
 function frequency(subject, absences) {
   const workload = Math.max(1, Number(subject.credits) * 15);
   return Math.max(0, 100 - (absences / workload) * 100);
@@ -1151,18 +1156,21 @@ function renderReport() {
   els.absenceCount.textContent = totalAbs;
 
   els.reportTableBody.innerHTML = rows
-    .map(({ subject, report, absences, freq, avg, situation }) => `
-      <tr data-report-subject="${subject.id}">
-        <td>${subject.code}</td>
-        <td><strong>${subject.name}</strong></td>
-        <td><input data-report-field="ap1" type="text" inputmode="decimal" value="${report.ap1 ?? ""}" placeholder="0-10" /></td>
-        <td><input data-report-field="ap2" type="text" inputmode="decimal" value="${report.ap2 ?? ""}" placeholder="0-10" /></td>
-        <td><input data-report-field="pf" type="text" inputmode="decimal" value="${report.pf ?? ""}" placeholder="0-10" /></td>
-        <td><input data-report-field="baseAbsences" type="text" inputmode="numeric" value="${report.baseAbsences ?? 0}" /></td>
-        <td>${freq.toFixed(1)}%</td>
-        <td>${situation}</td>
-      </tr>
-    `)
+    .map(({ subject, report, absences, freq, avg, situation }) => {
+      const pfUnlocked = isFinalExamUnlocked(report);
+      return `
+        <tr data-report-subject="${subject.id}">
+          <td>${subject.code}</td>
+          <td><strong>${subject.name}</strong></td>
+          <td><input data-report-field="ap1" type="text" inputmode="decimal" value="${report.ap1 ?? ""}" placeholder="0-10" /></td>
+          <td><input data-report-field="ap2" type="text" inputmode="decimal" value="${report.ap2 ?? ""}" placeholder="0-10" /></td>
+          <td><input data-report-field="pf" type="text" inputmode="decimal" value="${pfUnlocked ? report.pf ?? "" : ""}" placeholder="${pfUnlocked ? "0-10" : "bloqueada"}" ${pfUnlocked ? "" : "disabled"} /></td>
+          <td><input data-report-field="baseAbsences" type="text" inputmode="numeric" value="${report.baseAbsences ?? 0}" /></td>
+          <td>${freq.toFixed(1)}%</td>
+          <td>${situation}</td>
+        </tr>
+      `;
+    })
     .join("");
 
   els.absenceLogCount.textContent = state.absenceLog.length;
@@ -1456,6 +1464,9 @@ els.reportTableBody.addEventListener("change", (event) => {
   const field = input.dataset.reportField;
   const parsed = field === "baseAbsences" ? parseWhole(input.value) : parseDecimal(input.value);
   report[field] = parsed === null ? "" : parsed;
+  if (field !== "pf" && !isFinalExamUnlocked(report)) {
+    report.pf = "";
+  }
   persist();
   renderReport();
 });

@@ -173,6 +173,13 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(8, 127, 91, 0.16);
 }
 
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  background: #eef1ee;
+  color: #8a948f;
+}
+
 .metrics-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-bottom: 18px;
