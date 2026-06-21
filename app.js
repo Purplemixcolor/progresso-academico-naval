@@ -5,7 +5,7 @@ const DEFAULT_SYNC_CONFIG = {
   anonKey: "sb_publishable_lJpsJu-6vS9t9EW98yYt3g_fncBDMf7",
 };
 
-const CURRICULUM_FIX_VERSION = 3;
+const CURRICULUM_FIX_VERSION = 4;
 const OFFICIAL_OPTATIVE_PERIOD = 9;
 const CURRICULUM_ID_RENAMES = {
   esteme063: "estenv016",
@@ -23,6 +23,12 @@ const CURRICULUM_FIXES = {
   estenv016: { name: "Processos de Soldagem", code: "ESTENV016", idealPeriod: 7, prereqs: ["estenv002"], equivalence: "ESTEME063" },
   estenv112: { idealPeriod: OFFICIAL_OPTATIVE_PERIOD, prereqs: ["estenv013"] },
   estenv100: { idealPeriod: OFFICIAL_OPTATIVE_PERIOD, prereqs: ["estenv013"] },
+};
+const STATUS_RANK = {
+  pending: 0,
+  planned: 1,
+  doing: 2,
+  done: 3,
 };
 
 const TCC1_PREREQS = [
@@ -366,6 +372,20 @@ function migrateState({ silent = false, save = true } = {}) {
       if (subject.selectableOptative) subject.idealPeriod = OFFICIAL_OPTATIVE_PERIOD;
       const fix = CURRICULUM_FIXES[subject.id];
       if (fix) Object.assign(subject, fix);
+    });
+    Object.entries(state.optativeChoices).forEach(([slotId, chosenId]) => {
+      const slotSubject = state.subjects.find((subject) => subject.id === slotId);
+      const chosen = state.subjects.find((subject) => subject.id === chosenId);
+      if (slotSubject && chosen) {
+        const source = (STATUS_RANK[chosen.status] || 0) > (STATUS_RANK[slotSubject.status] || 0) ? chosen : slotSubject;
+        const merged = {
+          status: source.status,
+          grade: source.grade ?? slotSubject.grade ?? chosen.grade ?? null,
+          completedPeriod: source.completedPeriod ?? slotSubject.completedPeriod ?? chosen.completedPeriod ?? null,
+        };
+        Object.assign(slotSubject, merged);
+        Object.assign(chosen, merged);
+      }
     });
     state.meta.curriculumFixVersion = CURRICULUM_FIX_VERSION;
   }
@@ -818,7 +838,8 @@ function renderOptatives() {
       const selectedId = state.optativeChoices[slotId] || "";
       const selected = byId.get(selectedId);
       const slotSubject = byId.get(slotId);
-      const slotStatus = slotSubject?.status || "pending";
+      const slotStatus = selected?.status || slotSubject?.status || "pending";
+      const slotGrade = selected?.grade ?? slotSubject?.grade ?? "";
       return `
         <article class="optative-slot" data-optative-card="${slotId}">
           <h3>${label}</h3>
@@ -838,12 +859,19 @@ function renderOptatives() {
           </div>
           <label>
             Nota
-            <input data-optative-grade="${slotId}" type="number" min="0" max="10" step="0.01" value="${slotSubject?.grade ?? ""}" placeholder="0-10" />
+            <input data-optative-grade="${slotId}" type="number" min="0" max="10" step="0.01" value="${slotGrade}" placeholder="0-10" />
           </label>
         </article>
       `;
     })
     .join("");
+}
+
+function syncOptativeChoice(slotId, updates = {}) {
+  const slotSubject = state.subjects.find((subject) => subject.id === slotId);
+  const chosenId = state.optativeChoices?.[slotId];
+  const chosen = state.subjects.find((subject) => subject.id === chosenId);
+  [slotSubject, chosen].filter(Boolean).forEach((subject) => Object.assign(subject, updates));
 }
 
 function getFilteredSubjects() {
@@ -1607,13 +1635,19 @@ els.absenceLog.addEventListener("click", (event) => {
 els.optativeSlots.addEventListener("change", (event) => {
   const select = event.target.closest("select[data-optative-slot]");
   if (select) {
-    state.optativeChoices[select.dataset.optativeSlot] = select.value;
-    const slotSubject = state.subjects.find((subject) => subject.id === select.dataset.optativeSlot);
+    const slotId = select.dataset.optativeSlot;
+    state.optativeChoices[slotId] = select.value;
+    const slotSubject = state.subjects.find((subject) => subject.id === slotId);
     const chosen = state.subjects.find((subject) => subject.id === select.value);
     if (slotSubject) {
       slotSubject.status = chosen?.status || slotSubject.status || "pending";
       slotSubject.grade = chosen?.grade ?? slotSubject.grade ?? null;
       slotSubject.completedPeriod = chosen?.completedPeriod ?? slotSubject.completedPeriod ?? null;
+    }
+    if (chosen && slotSubject) {
+      chosen.status = slotSubject.status;
+      chosen.grade = slotSubject.grade;
+      chosen.completedPeriod = slotSubject.completedPeriod;
     }
     persist();
     render();
@@ -1624,10 +1658,11 @@ els.optativeSlots.addEventListener("click", (event) => {
   const button = event.target.closest("[data-optative-status]");
   if (!button) return;
   const card = event.target.closest("[data-optative-card]");
-  const slotSubject = state.subjects.find((subject) => subject.id === card.dataset.optativeCard);
-  if (!slotSubject) return;
-  slotSubject.status = button.dataset.optativeStatus;
-  slotSubject.completedPeriod = slotSubject.status === "done" ? Number(state.settings.currentPeriod) : null;
+  const status = button.dataset.optativeStatus;
+  syncOptativeChoice(card.dataset.optativeCard, {
+    status,
+    completedPeriod: status === "done" ? Number(state.settings.currentPeriod) : null,
+  });
   persist();
   render();
 });
@@ -1635,19 +1670,15 @@ els.optativeSlots.addEventListener("click", (event) => {
 els.optativeSlots.addEventListener("input", (event) => {
   const input = event.target.closest("[data-optative-grade]");
   if (!input) return;
-  const slotSubject = state.subjects.find((subject) => subject.id === input.dataset.optativeGrade);
-  if (!slotSubject) return;
-  slotSubject.grade = input.value;
+  syncOptativeChoice(input.dataset.optativeGrade, { grade: input.value });
   persist();
 });
 
 els.optativeSlots.addEventListener("change", (event) => {
   const input = event.target.closest("[data-optative-grade]");
   if (!input) return;
-  const slotSubject = state.subjects.find((subject) => subject.id === input.dataset.optativeGrade);
-  if (!slotSubject) return;
   const parsed = parseDecimal(input.value);
-  slotSubject.grade = parsed === "" ? null : parsed;
+  syncOptativeChoice(input.dataset.optativeGrade, { grade: parsed === "" ? null : parsed });
   persist();
   renderGrades();
   const cr = coefficient();
