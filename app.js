@@ -233,8 +233,9 @@ let syncClient = null;
 let syncUser = null;
 let syncTimer = null;
 let syncEnabled = false;
+const hasStoredState = Boolean(localStorage.getItem(STORAGE_KEY));
 let state = loadState();
-migrateState();
+migrateState({ save: hasStoredState });
 let flowSelectedId = "estenv007";
 
 const els = {
@@ -340,15 +341,16 @@ function loadState() {
   }
 }
 
-function migrateState({ silent = false } = {}) {
-  state.meta = { updatedAt: new Date().toISOString(), ...state.meta };
+function migrateState({ silent = false, save = true } = {}) {
+  let changed = false;
+  state.meta ||= {};
   state.settings = { ...defaultState.settings, ...state.settings };
   state.schedule ||= structuredClone(defaultState.schedule);
   state.optativeChoices = { ...defaultState.optativeChoices, ...state.optativeChoices };
   state.termReport = { ...structuredClone(defaultState.termReport), ...state.termReport };
   state.absenceLog ||= [];
-  state.meta ||= {};
   if ((state.meta.curriculumFixVersion || 0) < CURRICULUM_FIX_VERSION) {
+    changed = true;
     const renameId = (id) => CURRICULUM_ID_RENAMES[id] || id;
     state.subjects.forEach((subject) => {
       subject.id = renameId(subject.id);
@@ -367,10 +369,13 @@ function migrateState({ silent = false } = {}) {
     });
     state.meta.curriculumFixVersion = CURRICULUM_FIX_VERSION;
   }
-  state.subjects = state.subjects.map((subject) => {
+  const cleanedSubjects = state.subjects.map((subject) => {
     const { chance, priority, ...cleanSubject } = subject;
+    if (chance !== undefined || priority !== undefined) changed = true;
     return { grade: null, equivalence: "", category: "required", selectableOptative: false, ...cleanSubject };
   });
+  state.subjects = cleanedSubjects;
+  if (!changed || !save) return;
   if (silent) persistLocalOnly();
   else persist();
 }
@@ -487,6 +492,7 @@ async function setupSyncClient() {
   syncUser = data.session?.user || null;
   syncEnabled = Boolean(syncUser);
   setSyncStatus(syncUser ? `Conectado: ${syncUser.email}` : "Configuração pronta. Entre com sua conta.");
+  if (syncUser) await syncNow();
 }
 
 async function signUp() {
