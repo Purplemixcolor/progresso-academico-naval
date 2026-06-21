@@ -5,12 +5,22 @@ const DEFAULT_SYNC_CONFIG = {
   anonKey: "sb_publishable_lJpsJu-6vS9t9EW98yYt3g_fncBDMf7",
 };
 
-const CURRICULUM_FIX_VERSION = 2;
+const CURRICULUM_FIX_VERSION = 3;
 const OFFICIAL_OPTATIVE_PERIOD = 9;
+const CURRICULUM_ID_RENAMES = {
+  esteme063: "estenv016",
+};
 const CURRICULUM_FIXES = {
-  esteme008: { idealPeriod: 5, prereqs: ["esteme004"] },
+  estbas009: { equivalence: "ESN0309" },
+  estbas016: { prereqs: ["estbas013"] },
+  estenv002: { prereqs: [] },
+  esteme002: { prereqs: ["estbas013"] },
+  estemt010: { prereqs: [] },
   estenv007: { idealPeriod: 5, prereqs: ["estenv001"] },
-  esteme063: { idealPeriod: 7, prereqs: ["estenv002"] },
+  esteci002: { idealPeriod: 3, prereqs: ["estbas007"] },
+  esteme004: { equivalence: "ESTTME340" },
+  esteme008: { idealPeriod: 5, prereqs: ["esteme004"], equivalence: "ESTTME410" },
+  estenv016: { name: "Processos de Soldagem", code: "ESTENV016", idealPeriod: 7, prereqs: ["estenv002"], equivalence: "ESTEME063" },
   estenv112: { idealPeriod: OFFICIAL_OPTATIVE_PERIOD, prereqs: ["estenv013"] },
   estenv100: { idealPeriod: OFFICIAL_OPTATIVE_PERIOD, prereqs: ["estenv013"] },
 };
@@ -123,7 +133,7 @@ const defaultState = {
     s("estbas007", "Física I", "ESTBAS007", 1, 4, [], "done", 1, 9.63),
     s("estecp001", "Linguagem de Programação I", "ESTECP001", 1, 4, [], "done", 1, 6.27),
     s("estbas008", "Álgebra Linear II", "ESTBAS008", 2, 4, ["estbas001"]),
-    s("estbas009", "Cálculo II", "ESTBAS009", 2, 5, ["estbas002"], "done", 5, 7.5),
+    s("estbas009", "Cálculo II", "ESTBAS009", 2, 5, ["estbas002"], "done", 5, 7.5, "ESN0309"),
     s("estbas010", "Desenho Básico", "ESTBAS010", 2, 3, [], "done", 2, 9),
     s("estbas011", "Introdução à Administração", "ESTBAS011", 2, 3, [], "done", 4, 9),
     s("estbas012", "Probabilidade e Estatística", "ESTBAS012", 2, 4, ["estbas002"], "done", 5, 9.6),
@@ -132,19 +142,19 @@ const defaultState = {
     s("estecp002", "Linguagem de Programação II", "ESTECP002", 2, 4, ["estecp001"], "done", 2, 9.25),
     s("estbas014", "Cálculo III", "ESTBAS014", 3, 5, ["estbas009"]),
     s("estbas015", "Física III", "ESTBAS015", 3, 4, ["estbas013"], "done", 4, 7.67),
-    s("estbas016", "Laboratório de Física I", "ESTBAS016", 3, 1, ["estbas007"], "done", 3, 6.6),
+    s("estbas016", "Laboratório de Física I", "ESTBAS016", 3, 1, ["estbas013"], "done", 3, 6.6),
     s("estbas049", "Cálculo Numérico", "ESTBAS049", 3, 4, ["estbas009"], "pending", null, null, "ESN0509"),
     s("estenv001", "Fundamentos de Engenharia Naval", "ESTENV001", 3, 3, ["estbas003"], "done", 3, 7.8),
-    s("estenv002", "Ciência e Engenharia dos Materiais", "ESTENV002", 3, 4, ["estbas005"], "done", 3, 7.6),
-    s("esteme002", "Introdução à Manufatura Mecânica", "ESTEME002", 3, 4, ["estbas010"], "done", 3, 8),
-    s("esteme008", "Termodinâmica", "ESTEME008", 5, 6, ["esteme004"], "done", 4, 7),
+    s("estenv002", "Ciência e Engenharia dos Materiais", "ESTENV002", 3, 4, [], "done", 3, 7.6),
+    s("esteme002", "Introdução à Manufatura Mecânica", "ESTEME002", 3, 4, ["estbas013"], "done", 3, 8),
+    s("esteme008", "Termodinâmica", "ESTEME008", 5, 6, ["esteme004"], "done", 4, 7, "ESTTME410"),
     s("esteel055", "Eletricidade Geral", "ESTEEL055", 4, 4, ["estbas015"], "doing"),
     s("estbas018", "Física IV", "ESTBAS018", 4, 4, ["estbas015"], "done", 4, 8),
     s("estbas019", "Cálculo IV", "ESTBAS019", 4, 4, ["estbas014"]),
     s("estbas020", "Laboratório de Física II", "ESTBAS020", 4, 1, ["estbas016"]),
-    s("esteci002", "Mecânica I", "ESTECI002", 4, 4, ["estbas013"], "done", 2, 6),
+    s("esteci002", "Mecânica I", "ESTECI002", 3, 4, ["estbas007"], "done", 2, 6),
     s("esteme003", "Mecânica II", "ESTEME003", 4, 4, ["esteci002"], "done", 4, 7.75),
-    s("esteme004", "Mecânica dos Fluidos", "ESTEME004", 4, 4, ["esteci002"], "done", 3, 7.67),
+    s("esteme004", "Mecânica dos Fluidos", "ESTEME004", 4, 4, ["esteci002"], "done", 3, 7.67, "ESTTME340"),
     s("estenv003", "Mecânica dos Sólidos para Engenharia Naval", "ESTENV003", 4, 4, ["estbas009"], "doing", null, null, "ESTEME001"),
     s("estenv004", "Pesquisa Operacional", "ESTENV004", 4, 3, ["estbas049"]),
     s("estenv005", "Desenho Assistido por Computador", "ESTENV005", 5, 4, ["estbas010"], "doing"),
@@ -152,7 +162,7 @@ const defaultState = {
     s("estenv007", "Arquitetura Naval I", "ESTENV007", 5, 5, ["estenv001"], "doing"),
     s("estenv024", "Engenharia Econômica", "ESTENV024", 5, 3, ["estbas017"], "doing", null, null, "ESTENV008"),
     s("esteme018", "Elementos de Máquinas", "ESTEME018", 5, 4, ["esteme003"], "doing"),
-    s("estemt010", "Gestão de Projetos", "ESTEMT010", 5, 4, ["estbas011"], "doing"),
+    s("estemt010", "Gestão de Projetos", "ESTEMT010", 5, 4, [], "doing"),
     s("estenv112", "Regulamentação Marítima Internacional", "ESTENV112", 9, 3, ["estenv013"], "doing", null, null, "", "optative", true),
     s("estenv101", "Normas de Autoridades Marítimas", "ESTENV101", 9, 3, ["estenv010"], "pending", null, null, "", "optative", true),
     s("estenv102", "Língua Brasileira de Sinais", "ESTENV102", 9, 3, [], "pending", null, null, "", "optative", true),
@@ -198,7 +208,7 @@ const defaultState = {
     s("estenv037", "Projeto Naval II", "ESTENV037", 9, 6, ["estenv036"], "pending", null, null, "ESTENV032"),
     s("estenv034", "Trabalho de Conclusão de Curso II - Engenharia Naval", "ESTENV034", 10, 2, ["estenv031"]),
     s("estenv035", "Estágio Supervisionado em Engenharia Naval II", "ESTENV035", 10, 15, ["estenv033"]),
-    s("esteme063", "Processos de Soldagem", "ESTEME063", 7, 5, ["estenv002"], "done", 4, 9.1),
+    s("estenv016", "Processos de Soldagem", "ESTENV016", 7, 5, ["estenv002"], "done", 4, 9.1, "ESTEME063"),
     s("optativa1", "Optativa I", "OPT1", 5, 3, [], "doing", null, null, "", "optative"),
     s("optativa2", "Optativa II", "OPT2", 7, 3, [], "pending", null, null, "", "optative"),
     s("optativa3", "Optativa III", "OPT3", 8, 3, [], "pending", null, null, "", "optative"),
@@ -339,6 +349,17 @@ function migrateState({ silent = false } = {}) {
   state.absenceLog ||= [];
   state.meta ||= {};
   if ((state.meta.curriculumFixVersion || 0) < CURRICULUM_FIX_VERSION) {
+    const renameId = (id) => CURRICULUM_ID_RENAMES[id] || id;
+    state.subjects.forEach((subject) => {
+      subject.id = renameId(subject.id);
+      subject.prereqs = (subject.prereqs || []).map(renameId);
+    });
+    state.schedule = state.schedule.map((entry) => ({ ...entry, subjectId: renameId(entry.subjectId) }));
+    state.absenceLog = state.absenceLog.map((entry) => ({ ...entry, subjectId: renameId(entry.subjectId) }));
+    state.optativeChoices = Object.fromEntries(Object.entries(state.optativeChoices).map(([slot, value]) => [slot, renameId(value)]));
+    state.termReport = Object.fromEntries(
+      Object.entries(state.termReport).map(([subjectId, report]) => [renameId(subjectId), report])
+    );
     state.subjects.forEach((subject) => {
       if (subject.selectableOptative) subject.idealPeriod = OFFICIAL_OPTATIVE_PERIOD;
       const fix = CURRICULUM_FIXES[subject.id];
