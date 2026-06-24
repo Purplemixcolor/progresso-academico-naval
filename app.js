@@ -1265,6 +1265,11 @@ function renderReport() {
           <td><input data-report-field="baseAbsences" type="text" inputmode="numeric" value="${report.baseAbsences ?? 0}" ${disabled} /></td>
           <td>${isWithdrawn ? "-" : `${freq.toFixed(1)}%`}</td>
           <td>${situation}</td>
+          <td>
+            <button class="icon-button danger report-remove-button" type="button" data-remove-report-subject="${subject.id}" title="Remover do boletim">
+              <i data-lucide="x"></i>
+            </button>
+          </td>
         </tr>
       `;
     })
@@ -1328,6 +1333,30 @@ function setSubjectStatus(id, status) {
   const subject = state.subjects.find((item) => item.id === id);
   subject.status = status;
   subject.completedPeriod = status === "done" ? Number(state.settings.currentPeriod) : null;
+  persist();
+  render();
+}
+
+function removeFromCurrentReport(subjectId) {
+  const subject = state.subjects.find((item) => item.id === subjectId);
+  if (!subject) return;
+  const confirmed = confirm(`Remover ${subject.name} do boletim deste semestre?\n\nAs notas e faltas registradas para ela neste boletim serão apagadas. A disciplina continua na grade do curso.`);
+  if (!confirmed) return;
+
+  state.schedule = state.schedule.filter((item) => item.subjectId !== subjectId);
+  state.absenceLog = state.absenceLog.filter((entry) => entry.subjectId !== subjectId);
+  delete state.termReport[subjectId];
+
+  const slotId = Object.entries(state.optativeChoices).find(([, chosenId]) => chosenId === subjectId)?.[0];
+  if (slotId) {
+    syncOptativeChoice(slotId, { status: "pending", completedPeriod: null });
+  }
+
+  if (subject.status === "doing") {
+    subject.status = "pending";
+    subject.completedPeriod = null;
+  }
+
   persist();
   render();
 }
@@ -1545,6 +1574,12 @@ els.scheduleGrid.addEventListener("input", (event) => {
   const item = state.schedule.find((entry) => entry.subjectId === card.dataset.subjectId);
   item[input.dataset.field] = input.value;
   persist();
+});
+
+els.reportTableBody.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-report-subject]");
+  if (!button) return;
+  removeFromCurrentReport(button.dataset.removeReportSubject);
 });
 
 els.reportTableBody.addEventListener("input", (event) => {

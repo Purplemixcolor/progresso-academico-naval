@@ -1074,7 +1074,7 @@ dialog::backdrop {
 
 .report-table {
   width: 100%;
-  min-width: 920px;
+  min-width: 980px;
   border-collapse: collapse;
 }
 
@@ -1149,6 +1149,11 @@ dialog::backdrop {
   max-width: none !important;
   min-width: 0;
   flex: 1 1 160px;
+}
+
+.report-remove-button {
+  width: 34px;
+  height: 34px;
 }
 
 .report-grid {
