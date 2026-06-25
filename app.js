@@ -874,6 +874,17 @@ function syncOptativeChoice(slotId, updates = {}) {
   [slotSubject, chosen].filter(Boolean).forEach((subject) => Object.assign(subject, updates));
 }
 
+function syncOptativeSlotsFromChoices() {
+  Object.entries(state.optativeChoices || {}).forEach(([slotId, chosenId]) => {
+    const slotSubject = state.subjects.find((subject) => subject.id === slotId);
+    const chosen = state.subjects.find((subject) => subject.id === chosenId);
+    if (!slotSubject || !chosen) return;
+    slotSubject.status = chosen.status;
+    slotSubject.grade = chosen.grade ?? null;
+    slotSubject.completedPeriod = chosen.completedPeriod ?? null;
+  });
+}
+
 function getFilteredSubjects() {
   const query = els.searchInput.value.trim().toLowerCase();
   const filter = els.statusFilter.value;
@@ -1435,7 +1446,7 @@ function openNextPlanning() {
 }
 
 function finalizeCurrentTerm() {
-  const doing = state.subjects.filter((subject) => subject.status === "doing");
+  const doing = state.subjects.filter((subject) => subject.status === "doing" && !isOptativeSlot(subject));
   if (!doing.length) {
     alert("Não há matérias marcadas como em curso neste semestre.");
     return;
@@ -1467,6 +1478,8 @@ function finalizeCurrentTerm() {
       subject.completedPeriod = null;
       if (!state.schedule.some((item) => item.subjectId === subject.id)) state.schedule.push(sch(subject.id, "", "", "", `Planejada para ${nextSemesterLabel(label)}`));
     });
+
+  syncOptativeSlotsFromChoices();
 
   state.schedule = state.schedule.filter((item) => !isOptativeSlot(item.subjectId) && state.subjects.find((subject) => subject.id === item.subjectId)?.status === "doing");
   state.termReport = {};
