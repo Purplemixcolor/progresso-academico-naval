@@ -214,6 +214,21 @@ select:disabled {
   margin-bottom: 18px;
 }
 
+.dashboard-metrics {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-metrics .metric {
+  min-width: 0;
+  padding: 14px;
+}
+
+.dashboard-metrics .metric strong {
+  font-size: clamp(1.45rem, 2.2vw, 1.9rem);
+  overflow-wrap: anywhere;
+}
+
 .compact-metrics {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -1287,6 +1302,12 @@ dialog::backdrop {
 
   .flow-details {
     position: static;
+  }
+}
+
+@media (min-width: 981px) {
+  .dashboard-metrics {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 

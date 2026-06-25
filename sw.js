@@ -1,9 +1,9 @@
-const CACHE_NAME = "progresso-academico-v20";
+const CACHE_NAME = "progresso-academico-v21";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js?v=20",
+  "./app.js?v=21",
   "./manifest.webmanifest",
   "./app-icon-192.png",
   "./app-icon-512.png"
