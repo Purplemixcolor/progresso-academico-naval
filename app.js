@@ -332,6 +332,7 @@ const els = {
   subjectCode: document.querySelector("#subjectCode"),
   subjectPeriod: document.querySelector("#subjectPeriod"),
   subjectCredits: document.querySelector("#subjectCredits"),
+  subjectStatus: document.querySelector("#subjectStatus"),
   subjectPrereqs: document.querySelector("#subjectPrereqs"),
   deleteSubjectBtn: document.querySelector("#deleteSubjectBtn"),
   closeDialogBtn: document.querySelector("#closeDialogBtn"),
@@ -1380,6 +1381,7 @@ function openSubjectDialog(subject = null) {
   els.subjectCode.value = subject?.code || "";
   els.subjectPeriod.value = subject?.idealPeriod || Number(state.settings.currentPeriod);
   els.subjectCredits.value = subject?.credits || 4;
+  els.subjectStatus.value = subject?.status || "pending";
   [...els.subjectPrereqs.options].forEach((option) => {
     option.selected = subject?.prereqs.includes(option.value) || false;
   });
@@ -1400,6 +1402,7 @@ function saveSubject(event) {
   event.preventDefault();
   const id = els.subjectId.value || crypto.randomUUID();
   const existing = state.subjects.find((subject) => subject.id === id);
+  const status = els.subjectStatus.value;
   const next = {
     id,
     name: els.subjectName.value.trim(),
@@ -1407,13 +1410,21 @@ function saveSubject(event) {
     idealPeriod: Number(els.subjectPeriod.value),
     credits: Number(els.subjectCredits.value),
     prereqs: [...els.subjectPrereqs.selectedOptions].map((option) => option.value),
-    status: existing?.status || "pending",
-    completedPeriod: existing?.completedPeriod || null,
+    status,
+    completedPeriod: status === "done" ? existing?.completedPeriod || Number(state.settings.currentPeriod) : null,
     grade: existing?.grade ?? null,
   };
 
   if (existing) Object.assign(existing, next);
   else state.subjects.push(next);
+
+  if (status === "doing") {
+    if (!state.schedule.some((item) => item.subjectId === id)) state.schedule.push(sch(id));
+    reportFor(id);
+  } else {
+    state.schedule = state.schedule.filter((item) => item.subjectId !== id);
+    if (status !== "done") delete state.termReport[id];
+  }
 
   persist();
   els.dialog.close();

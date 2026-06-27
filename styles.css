@@ -1004,12 +1004,16 @@ dialog::backdrop {
   z-index: 30;
   display: flex;
   flex-direction: column;
+  height: 100dvh;
   width: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-right: 1px solid rgba(216, 224, 230, 0.85);
   background: var(--sidebar);
   backdrop-filter: blur(18px);
   box-shadow: 8px 0 30px rgba(15, 28, 48, 0.06);
   padding: 92px 14px 18px;
+  scrollbar-width: thin;
 }
 
 .bottom-nav::before {
@@ -1329,7 +1333,9 @@ dialog::backdrop {
     top: auto;
     bottom: 14px;
     flex-direction: row;
+    height: auto;
     width: min(820px, calc(100vw - 28px));
+    overflow-y: visible;
     transform: translateX(-50%);
     border: 1px solid rgba(15, 43, 36, 0.16);
     border-radius: 16px;
